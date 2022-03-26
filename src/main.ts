@@ -1,35 +1,63 @@
 import { Client, Intents } from "discord.js";
 import * as conf from "../config.json";
-import { isCommand, parseCommand } from "./commands";
+import { handleJoin, handleLeave, handlePlay, handleStop, isCommand, parseCommand } from "./commands";
+import { formatErrorMeta, logger } from "./logger";
+import { Assert } from "./misc/assert";
 
-const client = new Client({
-  intents: [Intents.FLAGS.GUILD_MESSAGES],
-});
+async function main() {
+  const client = new Client({
+    intents: [Intents.FLAGS.GUILDS, Intents.FLAGS.GUILD_MESSAGES, Intents.FLAGS.GUILD_VOICE_STATES],
+  });
 
-client.once("ready", () => {
-  console.log("Ready");
+  process.on("exit", () => {
+    logger.info("Exit handler started");
+    client.destroy();
+  });
 
-});
+  process.on("SIGINT", () => {
+    logger.info("SIGINT handler");
+    client.destroy();
+  });
 
-client.on("messageCreate", (message) => {
-    console.log(`Content = ${message.content}`);
+  client.on("error", (error) => {
+    logger.error("Unhandled client error", formatErrorMeta(error));
+  });
+
+  client.once("ready", () => {
+    logger.info("Ready");
+  });
+
+  client.on("messageCreate", async (message) => {
+    logger.debug("messageCreate", { eventMessage: message });
     const content = message.content;
-    if(isCommand(content)) {
+    if (isCommand(content)) {
       const parts = parseCommand(content);
       const command = parts[0];
 
-      if(command ===  "join") {
-        const voice = message.member?.voice;
-        if(!voice) {
-          message.reply("User is not in a channel");
-          return;
-        }
+      if (command === "join") {
+        handleJoin(message);
+      }
 
-        const voiceChannel = voice.channel;
-        client.channels.cache.get("a")
-        message.member?.voice.
+      if (command === "leave") {
+        handleLeave(message);
+      }
+
+      if (command === "play") {
+        await handlePlay(message, parts);
+      }
+
+      if (command === "stop") {
+        handleStop(message);
       }
     }
   });
 
-client.login(conf.token);
+  logger.info("Logging in");
+  try {
+    await client.login(conf.token);
+  } catch (error: any) {
+    logger.error("Unhandled exception in main", formatErrorMeta(error));
+  }
+}
+
+main();
