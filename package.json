@@ -2,12 +2,15 @@
   "name": "debil-bot",
   "version": "1.0.0",
   "description": "Debil bot",
+  "engines": {
+    "node": "16.x"
+  },
   "main": "ts-node ./src/main.ts",
   "scripts": {
     "main": "ts-node ./src/main.ts",
     "test": "jest"
   },
-  "author": "",
+  "author": "miniwa",
   "license": "MIT",
   "devDependencies": {
     "@types/jest": "^27.4.1",
