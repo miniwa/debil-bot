@@ -37,6 +37,9 @@ export class YouTubeProvider {
 
   async byVideoId(videoId: YouTubeVideoId, requester: User): Promise<YouTubeTrack> {
     const url = `https://www.youtube.com/watch?v=${videoId.raw}`;
+    logger.debug(`Calling getInfo for id=${videoId.raw}`, {
+      youtubeVideoId: videoId.raw,
+    });
     const info = await ytdl.getInfo(url);
     logger.debug("Video info received", { youtubeVideoId: videoId });
 
