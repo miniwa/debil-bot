@@ -16,8 +16,6 @@ export class VideoIdException extends Error {
   }
 }
 
-// https://youtu.be/7JFtfM9rVvQ
-// https://www.youtube.com/watch?v=7JFtfM9rVvQ&list=LL&index=52
 export function parseYouTubeVideoId(rawUrl: string): YouTubeVideoId {
   let youtubeUrl: URL;
   try {
@@ -25,14 +23,14 @@ export function parseYouTubeVideoId(rawUrl: string): YouTubeVideoId {
   } catch {
     throw new VideoIdException("Enter a valid URL");
   }
-
-  if (youtubeUrl.hostname === "www.youtube.com") {
+  const hostname = youtubeUrl.hostname;
+  if (hostname === "www.youtube.com" || hostname === "music.youtube.com") {
     const videoId = youtubeUrl.searchParams.get("v");
     if (!videoId) {
       throw new VideoIdException("Video id parameter missing from YouTube URL");
     }
     return new YouTubeVideoId(videoId);
-  } else if (youtubeUrl.hostname === "youtu.be") {
+  } else if (hostname === "youtu.be") {
     const pathName = youtubeUrl.pathname;
     const parts = pathName.split("/");
     if (parts.length !== 2) {

@@ -1,7 +1,18 @@
-import { Message } from "discord.js";
+import { Message, MessageEmbed } from "discord.js";
 import { MusicPlayer, MusicPlayerState } from "./audio/musicPlayer";
 import { logger } from "./logger";
 import { Assert } from "./misc/assert";
+import {
+  buildErrorNotConnectedToVoiceChannel,
+  buildErrorNotInVoiceChannel,
+  buildErrorNotPlaying,
+  buildJoinResponse,
+  buildLeaveResponse,
+  buildNowPlayingResponse,
+  buildPlayResponse,
+  buildQueueResponse,
+  buildStopResponse,
+} from "./ui/messages";
 import { YouTubeTrack } from "./youtube/track";
 import { parseYouTubeVideoId, VideoIdException, YouTubeVideoId } from "./youtube/url";
 
@@ -35,11 +46,11 @@ export function handleJoin(message: Message) {
 
   const voice = member.voice;
   if (!voice.channel) {
-    message.reply("You are not inside a voice channel");
-    return;
+    return buildErrorNotInVoiceChannel();
   }
   const musicPlayer = getOrCreateMusicPlayer(voice.guild.id);
   musicPlayer.ensureSubscriptionExists(voice.channel);
+  return buildJoinResponse(voice.channel.name);
 }
 
 export function handleLeave(message: Message) {
@@ -47,10 +58,24 @@ export function handleLeave(message: Message) {
   Assert.notNullOrUndefined(guild, "guild");
   const musicPlayer = getOrCreateMusicPlayer(guild.id);
   if (!musicPlayer.subscriptionExists()) {
-    message.reply("Bot is not connected to a voice channel");
-    return;
+    return buildErrorNotConnectedToVoiceChannel();
   }
+  const channelId = musicPlayer.getSubscribedChannelId();
+  const channel = guild.channels.cache.get(channelId);
+  Assert.notNullOrUndefined(channel, "channel");
   musicPlayer.removeSubscription();
+  return buildLeaveResponse(channel.name);
+}
+
+export function handleNowPlaying(message: Message) {
+  const guild = message.guild;
+  Assert.notNullOrUndefined(guild, "guild");
+  const musicPlayer = getOrCreateMusicPlayer(guild.id);
+  const nowPlaying = musicPlayer.getNowPlaying();
+  if (!nowPlaying) {
+    return buildErrorNotPlaying();
+  }
+  return buildNowPlayingResponse(nowPlaying);
 }
 
 export async function handlePlay(message: Message, commandParts: string[]) {
@@ -90,12 +115,15 @@ export async function handlePlay(message: Message, commandParts: string[]) {
     }
     musicPlayer.ensureSubscriptionExists(voice.channel);
   }
-
-  const track = await YouTubeTrack.create(youtubeVideoId);
-  musicPlayer.addTrack(track);
+  const track = await YouTubeTrack.create(youtubeVideoId, message.author);
   if (musicPlayer.getState() === MusicPlayerState.Idle) {
-    await musicPlayer.playNext();
+    await musicPlayer.playTrack(track);
+    return buildNowPlayingResponse(track);
   }
+
+  musicPlayer.addTrack(track);
+  const positionInQueue = musicPlayer.getQueueLength();
+  return buildPlayResponse(positionInQueue, track);
 }
 
 export function handleStop(message: Message) {
@@ -106,5 +134,22 @@ export function handleStop(message: Message) {
     channelId: message.channel.id,
   });
   const musicPlayer = getOrCreateMusicPlayer(guild.id);
-  musicPlayer.stop();
+  if (musicPlayer.getState() !== MusicPlayerState.Playing) {
+    return buildErrorNotPlaying();
+  }
+  musicPlayer.ensureStop();
+  return buildStopResponse();
+}
+
+export function handleQueue(message: Message) {
+  const guild = message.guild;
+  Assert.notNullOrUndefined(guild, "guild");
+  logger.info("Handle queue triggered", {
+    guildId: guild.id,
+    channelId: message.channel.id,
+  });
+  const musicPlayer = getOrCreateMusicPlayer(guild.id);
+  const queuedTracks = musicPlayer.getQueuedTracks();
+  const nowPlaying = musicPlayer.getNowPlaying();
+  return buildQueueResponse(queuedTracks, nowPlaying);
 }

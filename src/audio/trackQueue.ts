@@ -22,4 +22,8 @@ export class TrackQueue {
   length(): number {
     return this.items.length;
   }
+
+  getItems(): ITrack[] {
+    return this.items;
+  }
 }

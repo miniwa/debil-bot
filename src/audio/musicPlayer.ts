@@ -31,6 +31,7 @@ export class MusicPlayer {
   private state: MusicPlayerState;
   private audioPlayer: AudioPlayer;
   private trackQueue: TrackQueue;
+  private nowPlaying: ITrack | null;
   private subscription: MusicSubscription | null;
 
   constructor() {
@@ -41,17 +42,19 @@ export class MusicPlayer {
     });
     this.audioPlayer.on("stateChange", async (oldState: AudioPlayerState, newState: { status: any }) => {
       if (oldState.status === AudioPlayerStatus.Playing && newState.status === AudioPlayerStatus.Idle) {
-        // Play next track in queue.
         if (this.state === MusicPlayerState.Playing) {
-          if (this.trackQueue.length() > 0) {
-            await this.playNext();
+          // Play next track in queue.
+          const nextTrack = this.getNextTrack();
+          if (nextTrack) {
+            await this.playTrack(nextTrack);
           } else {
-            this.state = MusicPlayerState.Idle;
+            this.ensureStop();
           }
         }
       }
     });
     this.trackQueue = new TrackQueue();
+    this.nowPlaying = null;
     this.subscription = null;
   }
 
@@ -89,25 +92,44 @@ export class MusicPlayer {
   }
 
   async playTrack(track: ITrack) {
+    Assert.notNullOrUndefined(this.subscription, "subscription");
     const resource = await track.createAudioResource();
     this.audioPlayer.play(resource);
+    this.nowPlaying = track;
     this.state = MusicPlayerState.Playing;
   }
 
-  async playNext() {
-    Assert.notNullOrUndefined(this.subscription, "subscription");
-    const nextTrack = this.trackQueue.next();
-    await this.playTrack(nextTrack);
+  ensureStop() {
+    if (this.state === MusicPlayerState.Playing) {
+      this.state = MusicPlayerState.Idle;
+      this.nowPlaying = null;
+      if (!this.audioPlayer.stop()) {
+        logger.warn("audioPlayer.stop() returned false");
+      }
+    }
   }
 
   addTrack(track: ITrack) {
     this.trackQueue.add(track);
   }
 
-  stop() {
-    this.state = MusicPlayerState.Idle;
-    if (!this.audioPlayer.stop()) {
-      logger.warn("audioPlayer.stop() returned false");
+  getNowPlaying(): ITrack | null {
+    return this.nowPlaying;
+  }
+
+  getQueuedTracks(): ITrack[] {
+    return this.trackQueue.getItems();
+  }
+
+  getQueueLength(): number {
+    return this.trackQueue.length();
+  }
+
+  getNextTrack(): ITrack | null {
+    if (this.trackQueue.length() === 0) {
+      return null;
+    } else {
+      return this.trackQueue.next();
     }
   }
 }

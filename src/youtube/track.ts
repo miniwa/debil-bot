@@ -1,20 +1,40 @@
 import { AudioResource, createAudioResource, StreamType } from "@discordjs/voice";
+import { User } from "discord.js";
 import ytdl from "ytdl-core";
-import { ITrack } from "../audio/track";
+import { ITrack, TrackLength } from "../audio/track";
 import { logger } from "../logger";
+import { Assert } from "../misc/assert";
 import { YouTubeVideoId } from "./url";
 
 export class YouTubeTrack implements ITrack {
   private name: string;
+  private url: string;
+  private length: TrackLength;
+  private requester: User;
   private videoInfo: ytdl.videoInfo;
 
-  private constructor(name: string, videoInfo: ytdl.videoInfo) {
+  private constructor(name: string, url: string, length: TrackLength, requester: User, videoInfo: ytdl.videoInfo) {
     this.name = name;
+    this.url = url;
+    this.length = length;
+    this.requester = requester;
     this.videoInfo = videoInfo;
   }
 
   getName(): string {
     return this.name;
+  }
+
+  getUrl(): string {
+    return this.url;
+  }
+
+  getLength(): TrackLength {
+    return this.length;
+  }
+
+  getRequester(): User {
+    return this.requester;
   }
 
   async createAudioResource(): Promise<AudioResource> {
@@ -35,10 +55,22 @@ export class YouTubeTrack implements ITrack {
     return resource;
   }
 
-  static async create(videoId: YouTubeVideoId): Promise<YouTubeTrack> {
+  static async create(videoId: YouTubeVideoId, requester: User): Promise<YouTubeTrack> {
     const url = `https://www.youtube.com/watch?v=${videoId.raw}`;
     const info = await ytdl.getInfo(url);
     logger.debug("Video info received", { youtubeVideoId: videoId });
-    return new YouTubeTrack(info.videoDetails.title, info);
+
+    const name = info.videoDetails.title;
+    const lengthInSeconds = parseInt(info.videoDetails.lengthSeconds);
+    Assert.checkCondition(!isNaN(lengthInSeconds), "Expected length not to be NaN");
+    const length = new TrackLength(lengthInSeconds);
+    const track = new YouTubeTrack(name, url, length, requester, info);
+    logger.debug("Created new YouTubeTrack", {
+      trackName: track.getName(),
+      trackUrl: track.getUrl(),
+      trackLength: track.getLength(),
+      requester: track.getRequester(),
+    });
+    return track;
   }
 }

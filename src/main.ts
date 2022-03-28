@@ -1,6 +1,15 @@
 import { Client, Intents } from "discord.js";
 import * as conf from "../config.json";
-import { handleJoin, handleLeave, handlePlay, handleStop, isCommand, parseCommand } from "./commands";
+import {
+  handleJoin,
+  handleLeave,
+  handleNowPlaying,
+  handlePlay,
+  handleQueue,
+  handleStop,
+  isCommand,
+  parseCommand,
+} from "./commands";
 import { formatErrorMeta, logger } from "./logger";
 import { Assert } from "./misc/assert";
 
@@ -35,19 +44,35 @@ async function main() {
       const command = parts[0];
 
       if (command === "join") {
-        handleJoin(message);
+        const response = handleJoin(message);
+        message.reply(response);
       }
 
       if (command === "leave") {
-        handleLeave(message);
+        const response = handleLeave(message);
+        message.reply(response);
+      }
+
+      if (command === "np") {
+        const response = handleNowPlaying(message);
+        message.reply(response);
       }
 
       if (command === "play") {
-        await handlePlay(message, parts);
+        const response = await handlePlay(message, parts);
+        if (response) {
+          message.reply(response);
+        }
       }
 
       if (command === "stop") {
-        handleStop(message);
+        const response = handleStop(message);
+        message.reply(response);
+      }
+
+      if (command === "queue") {
+        const response = handleQueue(message);
+        message.reply(response);
       }
     }
   });
