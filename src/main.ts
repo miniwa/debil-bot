@@ -1,5 +1,5 @@
 import { Client, Intents } from "discord.js";
-import * as conf from "../config.json";
+import { cli } from "winston/lib/winston/config";
 import {
   handleJoin,
   handleLeave,
@@ -11,16 +11,12 @@ import {
   isCommand,
   parseCommand,
 } from "./commands";
+import { buildConfig } from "./config";
 import { formatErrorMeta, logger } from "./logger";
 
 async function main() {
   const client = new Client({
     intents: [Intents.FLAGS.GUILDS, Intents.FLAGS.GUILD_MESSAGES, Intents.FLAGS.GUILD_VOICE_STATES],
-  });
-
-  process.on("exit", () => {
-    logger.info("Exit handler started");
-    client.destroy();
   });
 
   process.on("SIGINT", () => {
@@ -30,10 +26,11 @@ async function main() {
 
   client.on("error", (error) => {
     logger.error("Unhandled client error", formatErrorMeta(error));
+    client.destroy();
   });
 
   client.once("ready", () => {
-    logger.info("Ready");
+    logger.info("Connected");
   });
 
   client.on("messageCreate", async (message) => {
@@ -82,14 +79,21 @@ async function main() {
     }
   });
 
-  logger.info("Logging in");
+  logger.info("Logging in..");
   try {
-    await client.login(conf.token);
-  } catch (error: any) {
-    logger.error("Unhandled exception in main", formatErrorMeta(error));
+    const config = buildConfig();
+    await client.login(config.botToken);
+  } catch (error) {
+    let meta: any = {
+      unknownError: error,
+    };
+    if (error instanceof Error) {
+      meta = formatErrorMeta(error);
+    }
+    logger.error("Unhandled exception in main", meta);
   }
 }
 
 main().catch((error) => {
-  logger.error("Unhandled promise catch in main", formatErrorMeta(error));
+  logger.error(`Unhandled exception catch in main: ${error.message}`, formatErrorMeta(error));
 });

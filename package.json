@@ -5,9 +5,11 @@
   "engines": {
     "node": "16.x"
   },
-  "main": "ts-node ./src/main.ts",
+  "main": "dist/src/main.js",
   "scripts": {
-    "main": "ts-node ./src/main.ts",
+    "build": "tsc",
+    "postinstall": "tsc",
+    "start": "node ./dist/src/main.js",
     "test": "jest"
   },
   "author": "miniwa",

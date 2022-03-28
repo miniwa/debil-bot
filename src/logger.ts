@@ -2,11 +2,11 @@ import winston from "winston";
 
 export const logger = winston.createLogger({
   level: "debug",
-  format: winston.format.json(),
+  format: winston.format.combine(winston.format.timestamp(), winston.format.prettyPrint()),
   transports: [
     new winston.transports.File({ filename: "error.log", level: "error" }),
     new winston.transports.File({ filename: "logger.log" }),
-    new winston.transports.Console({ format: winston.format.simple() }),
+    new winston.transports.Console(),
   ],
 });
 
