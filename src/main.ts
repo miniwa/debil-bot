@@ -6,12 +6,12 @@ import {
   handleNowPlaying,
   handlePlay,
   handleQueue,
+  handleSkip,
   handleStop,
   isCommand,
   parseCommand,
 } from "./commands";
 import { formatErrorMeta, logger } from "./logger";
-import { Assert } from "./misc/assert";
 
 async function main() {
   const client = new Client({
@@ -70,6 +70,11 @@ async function main() {
         message.reply(response);
       }
 
+      if (command === "skip") {
+        const response = await handleSkip(message);
+        message.reply(response);
+      }
+
       if (command === "queue") {
         const response = handleQueue(message);
         message.reply(response);
@@ -85,4 +90,6 @@ async function main() {
   }
 }
 
-main();
+main().catch((error) => {
+  logger.error("Unhandled promise catch in main", formatErrorMeta(error));
+});

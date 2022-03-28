@@ -53,6 +53,19 @@ export function buildStopResponse(): MessageOptions {
   };
 }
 
+export function buildSkipResponse(skipped: ITrack): MessageOptions {
+  const embed = new MessageEmbed()
+    .setColor(darkRed)
+    .setAuthor({ name: "Skipped" })
+    .setTitle(skipped.getName())
+    .setURL(skipped.getUrl())
+    .addField("Length", skipped.getLength().getHumanReadable(), true)
+    .addField("Requester", skipped.getRequester().username);
+  return {
+    embeds: [embed],
+  };
+}
+
 function formatTrackName(track: ITrack) {
   return `[${track.getName()}](${track.getUrl()})`;
 }
@@ -105,5 +118,17 @@ export function buildErrorNotConnectedToVoiceChannel(): MessageOptions {
 export function buildErrorNotPlaying(): MessageOptions {
   return {
     content: "Bot is not playing anything",
+  };
+}
+
+export function buildErrorNoSearchResult(query: string): MessageOptions {
+  return {
+    content: `No video found for query \`${query}\``,
+  };
+}
+
+export function buildUiMessageResponse(obj: { uiMessage: string }): MessageOptions {
+  return {
+    content: obj.uiMessage,
   };
 }

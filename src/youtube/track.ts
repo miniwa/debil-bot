@@ -13,7 +13,7 @@ export class YouTubeTrack implements ITrack {
   private requester: User;
   private videoInfo: ytdl.videoInfo;
 
-  private constructor(name: string, url: string, length: TrackLength, requester: User, videoInfo: ytdl.videoInfo) {
+  constructor(name: string, url: string, length: TrackLength, requester: User, videoInfo: ytdl.videoInfo) {
     this.name = name;
     this.url = url;
     this.length = length;
@@ -53,24 +53,5 @@ export class YouTubeTrack implements ITrack {
     //const probeInfo = await demuxProbe(downloadStream);
     const resource = createAudioResource(downloadStream, { inputType: StreamType.WebmOpus, silencePaddingFrames: 10 });
     return resource;
-  }
-
-  static async create(videoId: YouTubeVideoId, requester: User): Promise<YouTubeTrack> {
-    const url = `https://www.youtube.com/watch?v=${videoId.raw}`;
-    const info = await ytdl.getInfo(url);
-    logger.debug("Video info received", { youtubeVideoId: videoId });
-
-    const name = info.videoDetails.title;
-    const lengthInSeconds = parseInt(info.videoDetails.lengthSeconds);
-    Assert.checkCondition(!isNaN(lengthInSeconds), "Expected length not to be NaN");
-    const length = new TrackLength(lengthInSeconds);
-    const track = new YouTubeTrack(name, url, length, requester, info);
-    logger.debug("Created new YouTubeTrack", {
-      trackName: track.getName(),
-      trackUrl: track.getUrl(),
-      trackLength: track.getLength(),
-      requester: track.getRequester(),
-    });
-    return track;
   }
 }

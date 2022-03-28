@@ -1,21 +1,26 @@
-import { Message, MessageEmbed } from "discord.js";
+import { Message, MessageEmbed, MessageOptions } from "discord.js";
 import { MusicPlayer, MusicPlayerState } from "./audio/musicPlayer";
 import { logger } from "./logger";
 import { Assert } from "./misc/assert";
 import {
+  buildErrorNoSearchResult,
   buildErrorNotConnectedToVoiceChannel,
   buildErrorNotInVoiceChannel,
   buildErrorNotPlaying,
   buildJoinResponse,
   buildLeaveResponse,
   buildNowPlayingResponse,
-  buildPlayResponse,
+  buildPlayResponse as buildQueuedResponse,
   buildQueueResponse,
+  buildSkipResponse,
   buildStopResponse,
+  buildUiMessageResponse,
 } from "./ui/messages";
+import { YouTubeProvider } from "./youtube/provider";
 import { YouTubeTrack } from "./youtube/track";
 import { parseYouTubeVideoId, VideoIdException, YouTubeVideoId } from "./youtube/url";
 
+const youTubeProvider = new YouTubeProvider();
 const musicPlayers = new Map<string, MusicPlayer>();
 function getOrCreateMusicPlayer(guildId: string): MusicPlayer {
   if (!musicPlayers.has(guildId)) {
@@ -49,7 +54,7 @@ export function handleJoin(message: Message) {
     return buildErrorNotInVoiceChannel();
   }
   const musicPlayer = getOrCreateMusicPlayer(voice.guild.id);
-  musicPlayer.ensureSubscriptionExists(voice.channel);
+  musicPlayer.subscribeChannel(voice.channel);
   return buildJoinResponse(voice.channel.name);
 }
 
@@ -57,13 +62,13 @@ export function handleLeave(message: Message) {
   const guild = message.guild;
   Assert.notNullOrUndefined(guild, "guild");
   const musicPlayer = getOrCreateMusicPlayer(guild.id);
-  if (!musicPlayer.subscriptionExists()) {
+  if (!musicPlayer.hasSubscribedChannel()) {
     return buildErrorNotConnectedToVoiceChannel();
   }
   const channelId = musicPlayer.getSubscribedChannelId();
   const channel = guild.channels.cache.get(channelId);
   Assert.notNullOrUndefined(channel, "channel");
-  musicPlayer.removeSubscription();
+  musicPlayer.unsubscribeChannel();
   return buildLeaveResponse(channel.name);
 }
 
@@ -78,7 +83,8 @@ export function handleNowPlaying(message: Message) {
   return buildNowPlayingResponse(nowPlaying);
 }
 
-export async function handlePlay(message: Message, commandParts: string[]) {
+export async function handlePlay(message: Message, commandParts: string[]): Promise<MessageOptions> {
+  const requester = message.author;
   const guild = message.guild;
   Assert.notNullOrUndefined(guild, "guild");
   logger.info("Handle play triggered", {
@@ -87,43 +93,62 @@ export async function handlePlay(message: Message, commandParts: string[]) {
     channelId: message.channel.id,
   });
 
-  if (commandParts.length !== 2) {
-    message.reply("Usage !play <youtube url>");
-    return;
+  if (commandParts.length === 1) {
+    return {
+      content: "Usage !play <youtube url> OR !play <search query>",
+    };
   }
-  const rawYouTubeVideoUrl = commandParts[1];
-  let youtubeVideoId: YouTubeVideoId;
-  try {
-    youtubeVideoId = parseYouTubeVideoId(rawYouTubeVideoUrl);
-  } catch (error) {
-    if (error instanceof VideoIdException) {
-      message.reply(error.uiMessage);
-      return;
-    } else {
-      throw error;
+
+  let track: YouTubeTrack | null = null;
+  if (commandParts.length === 2) {
+    const possibleYouTubeUrl = commandParts[1];
+    if (possibleYouTubeUrl.startsWith("http")) {
+      // Parse as URL
+      try {
+        const videoId = parseYouTubeVideoId(possibleYouTubeUrl);
+        track = await youTubeProvider.byVideoId(videoId, requester);
+      } catch (error) {
+        if (error instanceof VideoIdException) {
+          return buildUiMessageResponse(error);
+        } else {
+          throw error;
+        }
+      }
     }
   }
 
-  const musicPlayer = getOrCreateMusicPlayer(guild.id);
-  if (!musicPlayer.subscriptionExists() || musicPlayer.getSubscribedChannelId() !== message.channelId) {
-    const member = message.member;
-    Assert.notNullOrUndefined(member, "member");
-    const voice = member.voice;
-    if (!voice.channel) {
-      message.reply("You are not inside a voice channel");
-      return;
+  // Track null means param was not a single youtube url.
+  // I.e we need to perform a search instead.
+  if (track === null) {
+    const queryParams = commandParts.slice(1);
+    const query = queryParams.join(" ");
+    track = await youTubeProvider.search(query, requester);
+    if (track === null) {
+      return buildErrorNoSearchResult(query);
     }
-    musicPlayer.ensureSubscriptionExists(voice.channel);
   }
-  const track = await YouTubeTrack.create(youtubeVideoId, message.author);
-  if (musicPlayer.getState() === MusicPlayerState.Idle) {
-    await musicPlayer.playTrack(track);
+
+  const requesterVoiceChannel = message.member?.voice?.channel ?? null;
+  const musicPlayer = getOrCreateMusicPlayer(guild.id);
+  if (!musicPlayer.hasSubscribedChannel()) {
+    if (!requesterVoiceChannel) {
+      return buildErrorNotInVoiceChannel();
+    }
+    musicPlayer.subscribeChannel(requesterVoiceChannel);
+  }
+
+  // Change channel is requester is connected to a different voice channel.
+  if (musicPlayer.hasSubscribedChannel()) {
+    if (requesterVoiceChannel && musicPlayer.getSubscribedChannelId() !== requesterVoiceChannel.id) {
+      musicPlayer.subscribeChannel(requesterVoiceChannel);
+    }
+  }
+
+  const positionInQueue = await musicPlayer.playOrAddToQueue(track);
+  if (positionInQueue === 0) {
     return buildNowPlayingResponse(track);
   }
-
-  musicPlayer.addTrack(track);
-  const positionInQueue = musicPlayer.getQueueLength();
-  return buildPlayResponse(positionInQueue, track);
+  return buildQueuedResponse(positionInQueue, track);
 }
 
 export function handleStop(message: Message) {
@@ -137,8 +162,24 @@ export function handleStop(message: Message) {
   if (musicPlayer.getState() !== MusicPlayerState.Playing) {
     return buildErrorNotPlaying();
   }
-  musicPlayer.ensureStop();
+  musicPlayer.stop();
   return buildStopResponse();
+}
+
+export async function handleSkip(message: Message): Promise<MessageOptions> {
+  const guild = message.guild;
+  Assert.notNullOrUndefined(guild, "guild");
+  logger.info("Handle skip triggered", {
+    guildId: guild.id,
+    channelId: message.channel.id,
+  });
+  const musicPlayer = getOrCreateMusicPlayer(guild.id);
+  const nowPlaying = musicPlayer.getNowPlaying();
+  if (!nowPlaying) {
+    return buildErrorNotPlaying();
+  }
+  await musicPlayer.playNextOrStop();
+  return buildSkipResponse(nowPlaying);
 }
 
 export function handleQueue(message: Message) {

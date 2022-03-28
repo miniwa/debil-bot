@@ -43,13 +43,7 @@ export class MusicPlayer {
     this.audioPlayer.on("stateChange", async (oldState: AudioPlayerState, newState: { status: any }) => {
       if (oldState.status === AudioPlayerStatus.Playing && newState.status === AudioPlayerStatus.Idle) {
         if (this.state === MusicPlayerState.Playing) {
-          // Play next track in queue.
-          const nextTrack = this.getNextTrack();
-          if (nextTrack) {
-            await this.playTrack(nextTrack);
-          } else {
-            this.ensureStop();
-          }
+          await this.playNextOrStop();
         }
       }
     });
@@ -58,13 +52,11 @@ export class MusicPlayer {
     this.subscription = null;
   }
 
-  async onAudioPlayerStateChange(oldState: { status: AudioPlayerStatus }, newState: { status: any }) {}
-
   getState() {
     return this.state;
   }
 
-  ensureSubscriptionExists(channel: VoiceBasedChannel) {
+  subscribeChannel(channel: VoiceBasedChannel) {
     if (this.subscription) {
       if (this.subscription.channelId === channel.id) {
         return;
@@ -74,7 +66,7 @@ export class MusicPlayer {
     this.subscription = MusicSubscription.create(channel, this.audioPlayer);
   }
 
-  removeSubscription() {
+  unsubscribeChannel() {
     if (!this.subscription) {
       throw new MusicPlayerError("Channel is not subscribed to MusicPlayer");
     }
@@ -82,7 +74,7 @@ export class MusicPlayer {
     this.subscription = null;
   }
 
-  subscriptionExists(): boolean {
+  hasSubscribedChannel(): boolean {
     return this.subscription !== null;
   }
 
@@ -99,7 +91,32 @@ export class MusicPlayer {
     this.state = MusicPlayerState.Playing;
   }
 
-  ensureStop() {
+  /**
+   * Either immidietly plays given track, or if already playing a track, adds given track to the queue.
+   * @param track Track to be played or added to queue.
+   * @returns Position in queue. 0 means the track was played immideitly.
+   */
+  async playOrAddToQueue(track: ITrack): Promise<number> {
+    const nowPlaying = this.getNowPlaying();
+    if (!nowPlaying) {
+      await this.playTrack(track);
+      return 0;
+    } else {
+      this.addTrack(track);
+      return this.getQueueLength();
+    }
+  }
+
+  async playNextOrStop() {
+    const nextTrack = this.getNextTrack();
+    if (nextTrack) {
+      await this.playTrack(nextTrack);
+    } else {
+      this.stop();
+    }
+  }
+
+  stop() {
     if (this.state === MusicPlayerState.Playing) {
       this.state = MusicPlayerState.Idle;
       this.nowPlaying = null;
