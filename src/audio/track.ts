@@ -1,13 +1,21 @@
 import { AudioResource } from "@discordjs/voice";
 import { User } from "discord.js";
 import { Assert } from "../misc/assert";
+import { Result } from "../result";
+
+export interface TrackContentNotAvailableError {
+  type: "TrackContentNotAvailableError";
+  reason: string;
+}
+
+export type TrackContentError = TrackContentNotAvailableError;
 
 export interface ITrack {
   getName(): string;
   getUrl(): string;
   getLength(): TrackLength;
   getRequester(): User;
-  createAudioResource(): Promise<AudioResource>;
+  createAudioResource(): Promise<Result<AudioResource, TrackContentError>>;
 }
 
 export class TrackLength {

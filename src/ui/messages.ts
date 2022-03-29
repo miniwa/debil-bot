@@ -127,6 +127,18 @@ export function buildErrorNoSearchResult(query: string): MessageOptions {
   };
 }
 
+export function buildYouTubeNotAvailable(): MessageOptions {
+  return {
+    content: "This song is not available. There are many possible reasons why",
+  };
+}
+
+export function buildTrackContentError(): MessageOptions {
+  return {
+    content: "There was a problem playing the content of this track",
+  };
+}
+
 export function buildUiMessageResponse(obj: { uiMessage: string }): MessageOptions {
   return {
     content: obj.uiMessage,

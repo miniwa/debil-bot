@@ -2,6 +2,7 @@ import { Message, MessageEmbed, MessageOptions } from "discord.js";
 import { MusicPlayer, MusicPlayerState } from "./audio/musicPlayer";
 import { logger } from "./logger";
 import { Assert } from "./misc/assert";
+import { err } from "./result";
 import {
   buildErrorNoSearchResult,
   buildErrorNotConnectedToVoiceChannel,
@@ -14,11 +15,13 @@ import {
   buildQueueResponse,
   buildSkipResponse,
   buildStopResponse,
+  buildTrackContentError,
   buildUiMessageResponse,
+  buildYouTubeNotAvailable,
 } from "./ui/messages";
 import { YouTubeProvider } from "./youtube/provider";
 import { YouTubeTrack } from "./youtube/track";
-import { parseYouTubeVideoId, VideoIdException, YouTubeVideoId } from "./youtube/url";
+import { parseYouTubeVideoId, YouTubeVideoId } from "./youtube/url";
 
 const youTubeProvider = new YouTubeProvider();
 const musicPlayers = new Map<string, MusicPlayer>();
@@ -104,16 +107,16 @@ export async function handlePlay(message: Message, commandParts: string[]): Prom
     const possibleYouTubeUrl = commandParts[1];
     if (possibleYouTubeUrl.startsWith("http")) {
       // Parse as URL
-      try {
-        const videoId = parseYouTubeVideoId(possibleYouTubeUrl);
-        track = await youTubeProvider.byVideoId(videoId, requester);
-      } catch (error) {
-        if (error instanceof VideoIdException) {
-          return buildUiMessageResponse(error);
-        } else {
-          throw error;
-        }
+      const parseIdResult = parseYouTubeVideoId(possibleYouTubeUrl);
+      if (parseIdResult.isErr()) {
+        return buildUiMessageResponse(parseIdResult.error);
       }
+
+      const byIdResult = await youTubeProvider.byVideoId(parseIdResult.value, requester);
+      if (byIdResult.isErr()) {
+        return buildYouTubeNotAvailable();
+      }
+      track = byIdResult.value;
     }
   }
 
@@ -122,10 +125,15 @@ export async function handlePlay(message: Message, commandParts: string[]): Prom
   if (track === null) {
     const queryParams = commandParts.slice(1);
     const query = queryParams.join(" ");
-    track = await youTubeProvider.search(query, requester);
-    if (track === null) {
-      return buildErrorNoSearchResult(query);
+    const searchResult = await youTubeProvider.search(query, requester);
+    if (searchResult.isErr()) {
+      const error = searchResult.error;
+      if (error.kind === "YTNoResult") {
+        return buildErrorNoSearchResult(query);
+      }
+      return buildYouTubeNotAvailable();
     }
+    track = searchResult.value;
   }
 
   const requesterVoiceChannel = message.member?.voice?.channel ?? null;
@@ -144,7 +152,11 @@ export async function handlePlay(message: Message, commandParts: string[]): Prom
     }
   }
 
-  const positionInQueue = await musicPlayer.playOrAddToQueue(track);
+  const playOrAddResult = await musicPlayer.playOrAddToQueue(track);
+  if (playOrAddResult.isErr()) {
+    return buildTrackContentError();
+  }
+  const positionInQueue = playOrAddResult.value;
   if (positionInQueue === 0) {
     return buildNowPlayingResponse(track);
   }
@@ -178,7 +190,10 @@ export async function handleSkip(message: Message): Promise<MessageOptions> {
   if (!nowPlaying) {
     return buildErrorNotPlaying();
   }
-  await musicPlayer.playNextOrStop();
+  const playResult = await musicPlayer.playNextOrStop();
+  if (playResult.isErr()) {
+    return buildTrackContentError();
+  }
   return buildSkipResponse(nowPlaying);
 }
 

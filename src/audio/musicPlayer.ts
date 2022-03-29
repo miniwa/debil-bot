@@ -11,8 +11,9 @@ import {
 import { VoiceBasedChannel, VoiceChannel } from "discord.js";
 import { formatErrorMeta, logger } from "../logger";
 import { Assert } from "../misc/assert";
+import { err, ok, Result } from "../result";
 import { MusicSubscription } from "./musicSubscription";
-import { ITrack } from "./track";
+import { ITrack, TrackContentError, TrackContentNotAvailableError } from "./track";
 import { TrackQueue } from "./trackQueue";
 
 class MusicPlayerError extends Error {
@@ -27,7 +28,12 @@ export enum MusicPlayerState {
   Idle,
 }
 
+export interface MusicPlayerEvents {
+  error: (error: Error) => void;
+}
+
 export class MusicPlayer {
+  private onErrorListeners: ((error: Error) => void)[];
   private state: MusicPlayerState;
   private audioPlayer: AudioPlayer;
   private trackQueue: TrackQueue;
@@ -35,21 +41,37 @@ export class MusicPlayer {
   private subscription: MusicSubscription | null;
 
   constructor() {
+    this.onErrorListeners = [];
     this.state = MusicPlayerState.Idle;
     this.audioPlayer = createAudioPlayer();
     this.audioPlayer.on("error", (error) => {
       logger.warn("Unhandled AudioPlayer error", formatErrorMeta(error));
+      this.stop();
+      this.emitOnError(error);
     });
-    this.audioPlayer.on("stateChange", async (oldState: AudioPlayerState, newState: { status: any }) => {
-      if (oldState.status === AudioPlayerStatus.Playing && newState.status === AudioPlayerStatus.Idle) {
-        if (this.state === MusicPlayerState.Playing) {
-          await this.playNextOrStop();
+    this.audioPlayer.on(AudioPlayerStatus.Idle, async (oldState, newState) => {
+      if (oldState.status === AudioPlayerStatus.Playing && this.state === MusicPlayerState.Playing) {
+        const playResult = await this.playNextOrStop();
+        if (playResult.isErr()) {
+          const reason = playResult.error.reason;
+          this.stop();
+          this.emitOnError(new Error(reason));
         }
       }
     });
     this.trackQueue = new TrackQueue();
     this.nowPlaying = null;
     this.subscription = null;
+  }
+
+  onError(listener: (error: Error) => void) {
+    this.onErrorListeners.push(listener);
+  }
+
+  private emitOnError(error: Error) {
+    for (const listener of this.onErrorListeners) {
+      listener(error);
+    }
   }
 
   getState() {
@@ -83,12 +105,16 @@ export class MusicPlayer {
     return this.subscription.channelId;
   }
 
-  async playTrack(track: ITrack) {
+  async playTrack(track: ITrack): Promise<Result<null, TrackContentError>> {
     Assert.notNullOrUndefined(this.subscription, "subscription");
-    const resource = await track.createAudioResource();
-    this.audioPlayer.play(resource);
+    const resourceResult = await track.createAudioResource();
+    if (resourceResult.isErr()) {
+      return err(resourceResult.error);
+    }
+    this.audioPlayer.play(resourceResult.value);
     this.nowPlaying = track;
     this.state = MusicPlayerState.Playing;
+    return ok(null);
   }
 
   /**
@@ -96,23 +122,31 @@ export class MusicPlayer {
    * @param track Track to be played or added to queue.
    * @returns Position in queue. 0 means the track was played immideitly.
    */
-  async playOrAddToQueue(track: ITrack): Promise<number> {
+  async playOrAddToQueue(track: ITrack): Promise<Result<number, TrackContentError>> {
     const nowPlaying = this.getNowPlaying();
     if (!nowPlaying) {
-      await this.playTrack(track);
-      return 0;
+      const playResult = await this.playTrack(track);
+      if (playResult.isErr()) {
+        return err(playResult.error);
+      }
+      return ok(0);
     } else {
       this.addTrack(track);
-      return this.getQueueLength();
+      return ok(this.getQueueLength());
     }
   }
 
-  async playNextOrStop() {
+  async playNextOrStop(): Promise<Result<boolean, TrackContentError>> {
     const nextTrack = this.getNextTrack();
     if (nextTrack) {
-      await this.playTrack(nextTrack);
+      const playResult = await this.playTrack(nextTrack);
+      if (playResult.isErr()) {
+        return err(playResult.error);
+      }
+      return ok(true);
     } else {
       this.stop();
+      return ok(false);
     }
   }
 

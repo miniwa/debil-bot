@@ -3,18 +3,39 @@ import Enumerable from "linq";
 import ytdl from "ytdl-core";
 import ytsr from "ytsr";
 import { TrackLength } from "../audio/track";
-import { logger } from "../logger";
+import { formatErrorMeta, logger } from "../logger";
 import { Assert } from "../misc/assert";
+import { err, ok, Result } from "../result";
 import { YouTubeTrack } from "./track";
 import { YouTubeVideoId } from "./url";
 
+export interface YouTubeNotAvailableError {
+  kind: "YTNotAvailable";
+}
+
+export type YouTubeTrackByIdError = YouTubeNotAvailableError;
+
+export interface YouTubeNoResultError {
+  kind: "YTNoResult";
+}
+
+export type YouTubeSearchError = YouTubeTrackByIdError | YouTubeNoResultError;
+
 export class YouTubeProvider {
-  async search(query: string, requester: User): Promise<YouTubeTrack | null> {
+  async search(query: string, requester: User): Promise<Result<YouTubeTrack, YouTubeSearchError>> {
     Assert.checkCondition(query !== "", "Expected query to not be empty string");
     logger.debug("Searching YouTube", {
       query: query,
     });
-    const searchResult = await ytsr(query, { limit: 10 });
+
+    let searchResult: ytsr.Result;
+    try {
+      searchResult = await ytsr(query, { limit: 10 });
+    } catch (error) {
+      return err({
+        kind: "YTNotAvailable",
+      });
+    }
     const videos = Enumerable.from(searchResult.items)
       .where((item) => item.type === "video")
       .cast<ytsr.Video>()
@@ -24,7 +45,9 @@ export class YouTubeProvider {
       logger.debug("Query did not find any results", {
         query: query,
       });
-      return null;
+      return err({
+        kind: "YTNoResult",
+      });
     }
     const video = videos[0];
     logger.debug("Query found video", {
@@ -35,12 +58,21 @@ export class YouTubeProvider {
     return await this.byVideoId(videoId, requester);
   }
 
-  async byVideoId(videoId: YouTubeVideoId, requester: User): Promise<YouTubeTrack> {
+  async byVideoId(videoId: YouTubeVideoId, requester: User): Promise<Result<YouTubeTrack, YouTubeTrackByIdError>> {
     const url = `https://www.youtube.com/watch?v=${videoId.raw}`;
     logger.debug(`Calling getInfo for id=${videoId.raw}`, {
       youtubeVideoId: videoId.raw,
     });
-    const info = await ytdl.getInfo(url);
+
+    let info: ytdl.videoInfo;
+    try {
+      info = await ytdl.getInfo(url);
+    } catch (error) {
+      logger.debug("Unexpected exception thrown by ytdl.getInfo", formatErrorMeta(error));
+      return err({
+        kind: "YTNotAvailable",
+      });
+    }
     logger.debug("Video info received", { youtubeVideoId: videoId });
 
     const name = info.videoDetails.title;
@@ -54,6 +86,6 @@ export class YouTubeProvider {
       trackLength: track.getLength(),
       requester: track.getRequester(),
     });
-    return track;
+    return ok(track);
   }
 }

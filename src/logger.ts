@@ -10,11 +10,17 @@ export const logger = winston.createLogger({
   ],
 });
 
-export function formatErrorMeta(error: Error) {
+export function formatErrorMeta(error: unknown) {
+  if (error instanceof Error) {
+    return {
+      error: error,
+      errorMessage: error.message,
+      stack: error.stack,
+      name: error.name,
+    };
+  }
+
   return {
-    error: error,
-    errorMessage: error.message,
-    stack: error.stack,
-    name: error.name,
+    unknownError: error,
   };
 }

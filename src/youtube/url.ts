@@ -1,3 +1,5 @@
+import { err, ok, Result } from "../result";
+
 export class YouTubeVideoId {
   readonly raw: string;
 
@@ -6,38 +8,41 @@ export class YouTubeVideoId {
   }
 }
 
-export class VideoIdException extends Error {
-  readonly uiMessage: string;
-
-  constructor(uiMessage: string) {
-    super(uiMessage);
-    this.uiMessage = uiMessage;
-    this.name = "VideoIdException";
-  }
+interface IVideoIdParseError {
+  uiMessage: string;
 }
 
-export function parseYouTubeVideoId(rawUrl: string): YouTubeVideoId {
+export function parseYouTubeVideoId(rawUrl: string): Result<YouTubeVideoId, IVideoIdParseError> {
   let youtubeUrl: URL;
   try {
     youtubeUrl = new URL(rawUrl);
   } catch {
-    throw new VideoIdException("Enter a valid URL");
+    return err({
+      uiMessage: "Enter a valid URL",
+    });
   }
+
   const hostname = youtubeUrl.hostname;
   if (hostname === "www.youtube.com" || hostname === "music.youtube.com") {
     const videoId = youtubeUrl.searchParams.get("v");
     if (!videoId) {
-      throw new VideoIdException("Video id parameter missing from YouTube URL");
+      return err({
+        uiMessage: "Video id parameter missing from YouTube URL",
+      });
     }
-    return new YouTubeVideoId(videoId);
+    return ok(new YouTubeVideoId(videoId));
   } else if (hostname === "youtu.be") {
     const pathName = youtubeUrl.pathname;
     const parts = pathName.split("/");
     if (parts.length !== 2) {
-      throw new VideoIdException("Enter a valid shorthand URL");
+      return err({
+        uiMessage: "Enter a valid shorthand URL",
+      });
     }
-    return new YouTubeVideoId(parts[1]);
+    return ok(new YouTubeVideoId(parts[1]));
   } else {
-    throw new VideoIdException("Only YouTube URLs are supported");
+    return err({
+      uiMessage: "Only YouTube URLs are supported",
+    });
   }
 }

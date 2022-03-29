@@ -13,6 +13,7 @@ import {
 } from "./commands";
 import { buildConfig } from "./config";
 import { formatErrorMeta, logger } from "./logger";
+import { Assert } from "./misc/assert";
 
 async function main() {
   const client = new Client({
@@ -21,6 +22,11 @@ async function main() {
 
   process.on("SIGINT", () => {
     logger.info("SIGINT handler");
+    client.destroy();
+  });
+
+  process.on("SIGTERM", () => {
+    logger.info("SIGTERM handler");
     client.destroy();
   });
 
@@ -34,11 +40,20 @@ async function main() {
   });
 
   client.on("messageCreate", async (message) => {
-    logger.debug("messageCreate", { eventMessage: message });
     const content = message.content;
     if (isCommand(content)) {
       const parts = parseCommand(content);
       const command = parts[0];
+
+      const guild = message.guild;
+      const channel = message.channel;
+      Assert.notNullOrUndefined(guild, "guild");
+      logger.debug("Command detected", {
+        guildId: guild.id,
+        channelId: channel.id,
+        command: command,
+        args: parts.slice(1),
+      });
 
       if (command === "join") {
         const response = handleJoin(message);
@@ -57,9 +72,7 @@ async function main() {
 
       if (command === "play") {
         const response = await handlePlay(message, parts);
-        if (response) {
-          message.reply(response);
-        }
+        message.reply(response);
       }
 
       if (command === "stop") {
@@ -79,18 +92,19 @@ async function main() {
     }
   });
 
+  const configResult = buildConfig();
+  if (configResult.isErr()) {
+    const error = configResult.error;
+    logger.error(`ConfigError: ${error}`);
+    return;
+  }
+  const config = configResult.value;
+
   logger.info("Logging in..");
   try {
-    const config = buildConfig();
     await client.login(config.botToken);
   } catch (error) {
-    let meta: any = {
-      unknownError: error,
-    };
-    if (error instanceof Error) {
-      meta = formatErrorMeta(error);
-    }
-    logger.error("Unhandled exception in main", meta);
+    logger.error("Unhandled exception in main", formatErrorMeta(error));
   }
 }
 
