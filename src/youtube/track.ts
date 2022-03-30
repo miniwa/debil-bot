@@ -39,6 +39,7 @@ export class YouTubeTrack implements ITrack {
   }
 
   async createAudioResource(): Promise<Result<AudioResource, TrackContentError>> {
+    const profile = logger.startTimer();
     let opusFormat: ytdl.videoFormat;
     try {
       opusFormat = ytdl.chooseFormat(this.videoInfo.formats, {
@@ -81,6 +82,7 @@ export class YouTubeTrack implements ITrack {
     }
 
     const resource = createAudioResource(downloadStream, { inputType: StreamType.WebmOpus, silencePaddingFrames: 10 });
+    profile.done({ level: "debug", message: "YouTubeTrack.createAudioResource profile" });
     return ok(resource);
   }
 }

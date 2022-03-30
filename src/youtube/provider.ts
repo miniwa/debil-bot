@@ -23,6 +23,7 @@ export type YouTubeSearchError = YouTubeTrackByIdError | YouTubeNoResultError;
 
 export class YouTubeProvider {
   async search(query: string, requester: User): Promise<Result<YouTubeTrack, YouTubeSearchError>> {
+    const profile = logger.startTimer();
     Assert.checkCondition(query !== "", "Expected query to not be empty string");
     logger.debug("Searching YouTube", {
       query: query,
@@ -55,10 +56,13 @@ export class YouTubeProvider {
       video: video,
     });
     const videoId = new YouTubeVideoId(video.id);
-    return await this.byVideoId(videoId, requester);
+    const trackResult = await this.byVideoId(videoId, requester);
+    profile.done({ level: "debug", message: "YouTubeProvider.search profile" });
+    return trackResult;
   }
 
   async byVideoId(videoId: YouTubeVideoId, requester: User): Promise<Result<YouTubeTrack, YouTubeTrackByIdError>> {
+    const profile = logger.startTimer();
     const url = `https://www.youtube.com/watch?v=${videoId.raw}`;
     logger.debug(`Calling getInfo for id=${videoId.raw}`, {
       youtubeVideoId: videoId.raw,
@@ -86,6 +90,7 @@ export class YouTubeProvider {
       trackLength: track.getLength(),
       requester: track.getRequester(),
     });
+    profile.done({ level: "debug", message: "YouTubeProvider.byVideoId profile" });
     return ok(track);
   }
 }

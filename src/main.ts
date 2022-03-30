@@ -42,6 +42,7 @@ async function main() {
   client.on("messageCreate", async (message) => {
     const content = message.content;
     if (isCommand(content)) {
+      const handleCommandProfile = logger.startTimer();
       const parts = parseCommand(content);
       const command = parts[0];
 
@@ -89,6 +90,7 @@ async function main() {
         const response = handleQueue(message);
         message.reply(response);
       }
+      handleCommandProfile.done({ level: "debug", message: "Command handler profile" });
     }
   });
 
