@@ -1,8 +1,8 @@
 import { AudioPlayer, joinVoiceChannel, PlayerSubscription, VoiceConnection } from "@discordjs/voice";
-import { captureException } from "@sentry/node";
 import { VoiceBasedChannel, VoiceChannel } from "discord.js";
 import { formatErrorMeta, logger } from "../logger";
 import { Assert } from "../misc/assert";
+import { captureWithSerializedException } from "../misc/error";
 
 export class MusicSubscription {
   readonly channelId: string;
@@ -23,7 +23,7 @@ export class MusicSubscription {
     });
     voiceConnection.on("error", (error) => {
       logger.warn("Unhandled VoiceConnection error", formatErrorMeta(error));
-      captureException(error);
+      captureWithSerializedException(error);
     });
     const subscription = voiceConnection.subscribe(audioPlayer);
     Assert.notNullOrUndefined(subscription, "subscription");

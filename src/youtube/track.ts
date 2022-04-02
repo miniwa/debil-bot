@@ -70,7 +70,7 @@ export class YouTubeTrack implements ITrack {
     try {
       downloadStream = ytdl.downloadFromInfo(this.videoInfo, {
         format: opusFormat,
-        highWaterMark: bufferSize,
+        // highWaterMark: bufferSize,
       });
     } catch (error) {
       logger.debug("Failed to create download stream", formatErrorMeta(error));

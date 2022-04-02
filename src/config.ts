@@ -3,6 +3,7 @@ import { err, ok, Result } from "./result";
 export interface IConfig {
   getBotToken(): string;
   getSentryDsn(): string | null;
+  getSentryEnvironment(): string;
   getSentryTraceSampleRate(): number;
 }
 
@@ -28,12 +29,17 @@ export function buildConfig(): Result<IConfig, ConfigError> {
       )
     );
   }
+
+  const sentryEnvironment = process.env.DEBIL_SENTRY_ENVIRONMENT ?? "dev";
   const config: IConfig = {
     getBotToken() {
       return botToken;
     },
     getSentryDsn() {
       return sentryDsn;
+    },
+    getSentryEnvironment() {
+      return sentryEnvironment;
     },
     getSentryTraceSampleRate() {
       return sentryTraceSampleRate;

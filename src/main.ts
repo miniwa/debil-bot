@@ -13,7 +13,8 @@ import {
 import { buildConfig } from "./config";
 import { formatErrorMeta, logger } from "./logger";
 import { Assert } from "./misc/assert";
-import { captureException, init } from "@sentry/node";
+import { addBreadcrumb, Breadcrumb, init } from "@sentry/node";
+import { captureWithSerializedException } from "./misc/error";
 
 async function main() {
   const configResult = buildConfig();
@@ -29,6 +30,7 @@ async function main() {
     init({
       dsn: sentryDsn,
       tracesSampleRate: config.getSentryTraceSampleRate(),
+      environment: config.getSentryEnvironment(),
     });
     logger.debug("Sentry initialized.", {
       sentryDesn: sentryDsn,
@@ -54,7 +56,7 @@ async function main() {
 
   client.on("error", (error) => {
     logger.error("Unhandled client error", formatErrorMeta(error));
-    captureException(error);
+    captureWithSerializedException(error);
     client.destroy();
   });
 
@@ -72,12 +74,19 @@ async function main() {
       const guild = message.guild;
       const channel = message.channel;
       Assert.notNullOrUndefined(guild, "guild");
-      logger.debug("Command detected", {
+      const logData = {
         guildId: guild.id,
         channelId: channel.id,
         command: command,
         args: parts.slice(1),
-      });
+      };
+      logger.debug("Command detected", logData);
+      const commandBreadcrumb: Breadcrumb = {
+        category: "main.onCommand",
+        message: "Command detected",
+        data: logData,
+      };
+      addBreadcrumb(commandBreadcrumb);
 
       if (command === "join") {
         const response = handleJoin(message);
@@ -122,11 +131,11 @@ async function main() {
     await client.login(config.getBotToken());
   } catch (error) {
     logger.error("Unhandled exception in main", formatErrorMeta(error));
-    captureException(error);
+    captureWithSerializedException(error);
   }
 }
 
 main().catch((error) => {
   logger.error(`Unhandled exception catch in main: ${error.message}`, formatErrorMeta(error));
-  captureException(error);
+  captureWithSerializedException(error);
 });
