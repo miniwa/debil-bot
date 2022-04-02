@@ -8,6 +8,7 @@ import {
   joinVoiceChannel,
   VoiceConnection,
 } from "@discordjs/voice";
+import { captureException } from "@sentry/node";
 import { VoiceBasedChannel, VoiceChannel } from "discord.js";
 import { formatErrorMeta, logger } from "../logger";
 import { Assert } from "../misc/assert";
@@ -46,6 +47,7 @@ export class MusicPlayer {
     this.audioPlayer = createAudioPlayer();
     this.audioPlayer.on("error", (error) => {
       logger.warn("Unhandled AudioPlayer error", formatErrorMeta(error));
+      captureException(error);
       this.stop();
       this.emitOnError(error);
     });
