@@ -70,7 +70,7 @@ function initClient(): Client {
     if (isCommand(content)) {
       const handleCommandProfile = logger.startTimer();
       const parts = parseCommand(content);
-      const command = parts[0];
+      const command = parts[0].toLowerCase();
 
       const guild = message.guild;
       const channel = message.channel;
