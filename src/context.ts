@@ -67,17 +67,17 @@ export class GuildContext {
   }
 
   destroy() {
-    this.musicPlayer.destroy();
     const crumb: Breadcrumb = {
       category: "GuildContext",
-      message: "GuildContext was destroyed",
+      message: "Destroying GuildContext",
       data: {
         guildId: this.guildId,
       },
     };
     addBreadcrumb(crumb);
-    logger.debug("GuildContext was destroyed", {
+    logger.debug("Destroying GuildContext", {
       guildId: this.guildId,
     });
+    this.musicPlayer.destroy();
   }
 }
