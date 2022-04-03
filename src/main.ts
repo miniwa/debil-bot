@@ -1,5 +1,6 @@
 import { Client, Intents } from "discord.js";
 import {
+  CommandContext,
   handleJoin,
   handleLeave,
   handleNowPlaying,
@@ -10,11 +11,13 @@ import {
   isCommand,
   parseCommand,
 } from "./commands";
-import { buildConfig } from "./config";
+import { buildConfig, IConfig } from "./config";
 import { formatErrorMeta, logger } from "./logger";
 import { Assert } from "./misc/assert";
-import { addBreadcrumb, Breadcrumb, init } from "@sentry/node";
-import { captureWithSerializedException } from "./misc/error";
+import { addBreadcrumb, Breadcrumb } from "@sentry/node";
+import { captureWithSerializedException, configureSentry } from "./misc/error";
+import { getOrCreateGuildContext } from "./context";
+import { destroyIdleGuildContextsTask } from "./tasks";
 
 async function main() {
   const configResult = buildConfig();
@@ -23,27 +26,10 @@ async function main() {
     process.exit(0);
   }
   const config = configResult.value;
+  // Init sentry as early as possible.
+  configureSentry(config);
 
-  // Configure Sentry as early as possible,
-  const sentryDsn = config.getSentryDsn();
-  if (sentryDsn !== null) {
-    init({
-      dsn: sentryDsn,
-      tracesSampleRate: config.getSentryTraceSampleRate(),
-      environment: config.getSentryEnvironment(),
-    });
-    logger.debug("Sentry initialized.", {
-      sentryDesn: sentryDsn,
-      traceSampleRate: config.getSentryTraceSampleRate(),
-    });
-  } else {
-    logger.debug("No Sentry DSN detected. Skipping Sentry init.");
-  }
-
-  const client = new Client({
-    intents: [Intents.FLAGS.GUILDS, Intents.FLAGS.GUILD_MESSAGES, Intents.FLAGS.GUILD_VOICE_STATES],
-  });
-
+  const client = initClient();
   process.on("SIGINT", () => {
     logger.info("SIGINT handler");
     client.destroy();
@@ -52,6 +38,21 @@ async function main() {
   process.on("SIGTERM", () => {
     logger.info("SIGTERM handler");
     client.destroy();
+  });
+
+  logger.info("Logging in..");
+  try {
+    await client.login(config.getBotToken());
+    initScheduledTasks(config);
+  } catch (error) {
+    logger.error("Unhandled exception in main", formatErrorMeta(error));
+    captureWithSerializedException(error);
+  }
+}
+
+function initClient(): Client {
+  const client = new Client({
+    intents: [Intents.FLAGS.GUILDS, Intents.FLAGS.GUILD_MESSAGES, Intents.FLAGS.GUILD_VOICE_STATES],
   });
 
   client.on("error", (error) => {
@@ -88,51 +89,58 @@ async function main() {
       };
       addBreadcrumb(commandBreadcrumb);
 
+      const guildContext = getOrCreateGuildContext(guild.id);
+      guildContext.markCommandReceived();
+      const ctx: CommandContext = {
+        command: parts[0],
+        args: parts.slice(1),
+        guildContext: guildContext,
+        musicPlayer: guildContext.getMusicPlayer(),
+        guild: guild,
+        message: message,
+      };
       if (command === "join") {
-        const response = handleJoin(message);
+        const response = handleJoin(ctx);
         message.reply(response);
       }
 
       if (command === "leave") {
-        const response = handleLeave(message);
+        const response = handleLeave(ctx);
         message.reply(response);
       }
 
       if (command === "np") {
-        const response = handleNowPlaying(message);
+        const response = handleNowPlaying(ctx);
         message.reply(response);
       }
 
       if (command === "play") {
-        const response = await handlePlay(message, parts);
+        const response = await handlePlay(ctx);
         message.reply(response);
       }
 
       if (command === "stop") {
-        const response = handleStop(message);
+        const response = handleStop(ctx);
         message.reply(response);
       }
 
       if (command === "skip") {
-        const response = await handleSkip(message);
+        const response = await handleSkip(ctx);
         message.reply(response);
       }
 
       if (command === "queue") {
-        const response = handleQueue(message);
+        const response = handleQueue(ctx);
         message.reply(response);
       }
       handleCommandProfile.done({ level: "debug", message: "Command handler profile" });
     }
   });
+  return client;
+}
 
-  logger.info("Logging in..");
-  try {
-    await client.login(config.getBotToken());
-  } catch (error) {
-    logger.error("Unhandled exception in main", formatErrorMeta(error));
-    captureWithSerializedException(error);
-  }
+function initScheduledTasks(config: IConfig) {
+  destroyIdleGuildContextsTask(config.getMaxIdleTimeSeconds());
 }
 
 main().catch((error) => {

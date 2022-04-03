@@ -1,20 +1,11 @@
-import {
-  AudioPlayer,
-  AudioPlayerIdleState,
-  AudioPlayerPlayingState,
-  AudioPlayerState,
-  AudioPlayerStatus,
-  createAudioPlayer,
-  joinVoiceChannel,
-  VoiceConnection,
-} from "@discordjs/voice";
-import { VoiceBasedChannel, VoiceChannel } from "discord.js";
+import { AudioPlayer, AudioPlayerStatus, createAudioPlayer } from "@discordjs/voice";
+import { VoiceBasedChannel } from "discord.js";
 import { formatErrorMeta, logger } from "../logger";
 import { Assert } from "../misc/assert";
 import { captureWithSerializedException } from "../misc/error";
 import { err, ok, Result } from "../result";
 import { MusicSubscription } from "./musicSubscription";
-import { ITrack, TrackContentError, TrackContentNotAvailableError } from "./track";
+import { ITrack, TrackContentError } from "./track";
 import { TrackQueue } from "./trackQueue";
 
 class MusicPlayerError extends Error {
@@ -53,7 +44,7 @@ export class MusicPlayer {
       this.stop();
       this.emitOnError(error);
     });
-    this.audioPlayer.on(AudioPlayerStatus.Idle, async (oldState, newState) => {
+    this.audioPlayer.on(AudioPlayerStatus.Idle, async (oldState) => {
       if (oldState.status === AudioPlayerStatus.Playing && this.state === MusicPlayerState.Playing) {
         const playResult = await this.playNextOrStop();
         if (playResult.isErr()) {
@@ -198,5 +189,13 @@ export class MusicPlayer {
     } else {
       return this.trackQueue.next();
     }
+  }
+
+  destroy() {
+    if (this.subscription) {
+      this.unsubscribeChannel();
+    }
+    this.audioPlayer.stop(true);
+    this.onErrorListeners = [];
   }
 }

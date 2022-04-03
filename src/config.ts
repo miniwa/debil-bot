@@ -5,6 +5,7 @@ export interface IConfig {
   getSentryDsn(): string | null;
   getSentryEnvironment(): string;
   getSentryTraceSampleRate(): number;
+  getMaxIdleTimeSeconds(): number;
 }
 
 export class ConfigError extends Error {
@@ -29,8 +30,13 @@ export function buildConfig(): Result<IConfig, ConfigError> {
       )
     );
   }
-
   const sentryEnvironment = process.env.DEBIL_SENTRY_ENVIRONMENT ?? "dev";
+
+  const maxIdleTimeSeconds = parseInt(process.env.DEBIL_MAX_IDLE_TIME ?? "300");
+  if (isNaN(maxIdleTimeSeconds)) {
+    return err(new ConfigError("Expected DEBIL_MAX_IDLE_TIME to be a valid number."));
+  }
+
   const config: IConfig = {
     getBotToken() {
       return botToken;
@@ -43,6 +49,9 @@ export function buildConfig(): Result<IConfig, ConfigError> {
     },
     getSentryTraceSampleRate() {
       return sentryTraceSampleRate;
+    },
+    getMaxIdleTimeSeconds() {
+      return maxIdleTimeSeconds;
     },
   };
   return ok(config);

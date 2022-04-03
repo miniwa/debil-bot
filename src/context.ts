@@ -1,4 +1,21 @@
+import { addBreadcrumb, Breadcrumb } from "@sentry/node";
 import { MusicPlayer } from "./audio/musicPlayer";
+import { logger } from "./logger";
+import { Assert } from "./misc/assert";
+
+export const guildContexts = new Map<string, GuildContext>();
+
+export function getOrCreateGuildContext(guildId: string): GuildContext {
+  if (!guildContexts.has(guildId)) {
+    guildContexts.set(guildId, new GuildContext(guildId));
+    logger.debug("Created new GuildContext", {
+      guildId: guildId,
+    });
+  }
+  const guildContext = guildContexts.get(guildId);
+  Assert.notNullOrUndefined(guildContext, "guildContext");
+  return guildContext;
+}
 
 export class GuildContext {
   private guildId: string;
@@ -8,7 +25,18 @@ export class GuildContext {
   constructor(guildId: string) {
     this.guildId = guildId;
     this.musicPlayer = new MusicPlayer();
-    this.timeLastCommandReceived = 0;
+    this.timeLastCommandReceived = Date.now();
+    const crumb: Breadcrumb = {
+      category: "GuildContext",
+      message: "GuildContext was created",
+      data: {
+        guildId: this.guildId,
+      },
+    };
+    addBreadcrumb(crumb);
+    logger.debug("GuildContext was created", {
+      guildId: this.guildId,
+    });
   }
 
   getGuildId(): string {
@@ -24,8 +52,32 @@ export class GuildContext {
    */
   getTimeIdle(): number | null {
     const now = Date.now();
-    const musicPlayerTimeIdled = this.musicPlayer.getTimeIdle();
+    const musicPlayerTimedlingStarted = this.musicPlayer.getTimeIdlingStarted();
+    if (musicPlayerTimedlingStarted === null) {
+      return null;
+    }
+
+    const musicPlayerIdleTime = now - musicPlayerTimedlingStarted;
+    const timeSinceLastCommand = now - this.timeLastCommandReceived;
+    return Math.min(musicPlayerIdleTime, timeSinceLastCommand) / 1000;
   }
 
-  destroy() {}
+  markCommandReceived() {
+    this.timeLastCommandReceived = Date.now();
+  }
+
+  destroy() {
+    this.musicPlayer.destroy();
+    const crumb: Breadcrumb = {
+      category: "GuildContext",
+      message: "GuildContext was destroyed",
+      data: {
+        guildId: this.guildId,
+      },
+    };
+    addBreadcrumb(crumb);
+    logger.debug("GuildContext was destroyed", {
+      guildId: this.guildId,
+    });
+  }
 }
