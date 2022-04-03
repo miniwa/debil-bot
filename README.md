@@ -117,3 +117,4 @@ Permissions Integer: `3197952`
 
 - Long videos will crash after some time. See https://github.com/miniwa/debil-bot/issues/8.
 - Searches and retrieving video info is very slow (~2 seconds). See https://github.com/miniwa/debil-bot/issues/13.
+- Sometimes the bot will always reply with "This song is not available. There are many reasons why." In 9/10 cases a restart will fix the problem. See https://github.com/miniwa/debil-bot/issues/14.
