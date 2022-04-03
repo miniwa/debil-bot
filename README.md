@@ -8,8 +8,19 @@ Self-hosted YouTube music bot for Discord.
 
 ### YouTube
 
-- Play from URL (ex: `!play https://youtube.com/watch?v=XXXXXX`)
-- Play from keyword search (ex: `!play i want it that way backstreet boys`)
+- Play from YouTube URL
+- Play from keyword search (ex: )
+
+### Supported commands
+
+- `!play` From URL. Example:`!play https://youtube.com/watch?v=XXXXXX`
+- `!play` From keyword search. Example: `!play i want it that way backstreet boys`
+- `!np` Now playing.
+- `!skip`
+- `!stop`
+- `!join`
+- `!leave`
+- `!queue`
 
 ## Installation
 
@@ -47,6 +58,14 @@ Verify that the bot is online in your server. If so, congratulations!
 ## List of available configuration variables
 
 `DEBIL_BOT_TOKEN` The Bot Token of the bot instance to run as.
+
+`DEBIL_MAX_IDLE_TIME` The maximum amount of time in SECONDS the bot will stay idle in a channel. After this time has passed the bot will leave. Defaults to 300.
+
+`DEBIL_SENTRY_DSN` The DSN of the Sentry project to send captured exceptions to. (Optional.)
+
+`DEBIL_SENTRY_ENVIRONMENT` What Sentry environment to run as. Defaults to "dev".
+
+`DEBIL_SENTRY_TRACE_SAMPLE_RATE` The Sentry trace sample rate to use, a number between 0 and 1. Check the Sentry docs for further explanation. Defaults to 1.
 
 ## Discord Application Configuration
 
