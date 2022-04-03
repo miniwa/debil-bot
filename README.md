@@ -26,6 +26,11 @@ Self-hosted YouTube music bot for Discord.
 
 First off you will need a Discord Application with a Bot. Follow the steps in [Discord Application Configuration](#discord-application-configuration) section if you dont have one.
 
+### Requirements
+
+- node v16.xx (tested on v16.14.1)
+- npm (tested on v8.3.1)
+
 ### Install and build
 
 Download the source code from github:
@@ -107,3 +112,8 @@ Permissions Integer: `3197952`
 - Click continue
 - Click authorize
 - All done!
+
+## Known issues
+
+- Long videos will crash after some time. See https://github.com/miniwa/debil-bot/issues/8.
+- Searches and retrieving video info is very slow (~2 seconds). See https://github.com/miniwa/debil-bot/issues/13.
