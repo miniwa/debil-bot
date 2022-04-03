@@ -11,6 +11,7 @@ import {
 import { VoiceBasedChannel, VoiceChannel } from "discord.js";
 import { formatErrorMeta, logger } from "../logger";
 import { Assert } from "../misc/assert";
+import { captureWithSerializedException } from "../misc/error";
 import { err, ok, Result } from "../result";
 import { MusicSubscription } from "./musicSubscription";
 import { ITrack, TrackContentError, TrackContentNotAvailableError } from "./track";
@@ -48,6 +49,7 @@ export class MusicPlayer {
     this.audioPlayer = createAudioPlayer();
     this.audioPlayer.on("error", (error) => {
       logger.warn("Unhandled AudioPlayer error", formatErrorMeta(error));
+      captureWithSerializedException(error);
       this.stop();
       this.emitOnError(error);
     });

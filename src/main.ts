@@ -1,5 +1,4 @@
 import { Client, Intents } from "discord.js";
-import { cli } from "winston/lib/winston/config";
 import {
   handleJoin,
   handleLeave,
@@ -14,8 +13,33 @@ import {
 import { buildConfig } from "./config";
 import { formatErrorMeta, logger } from "./logger";
 import { Assert } from "./misc/assert";
+import { addBreadcrumb, Breadcrumb, init } from "@sentry/node";
+import { captureWithSerializedException } from "./misc/error";
 
 async function main() {
+  const configResult = buildConfig();
+  if (configResult.isErr()) {
+    logger.error("Failed to build config", formatErrorMeta(configResult.error));
+    process.exit(0);
+  }
+  const config = configResult.value;
+
+  // Configure Sentry as early as possible,
+  const sentryDsn = config.getSentryDsn();
+  if (sentryDsn !== null) {
+    init({
+      dsn: sentryDsn,
+      tracesSampleRate: config.getSentryTraceSampleRate(),
+      environment: config.getSentryEnvironment(),
+    });
+    logger.debug("Sentry initialized.", {
+      sentryDesn: sentryDsn,
+      traceSampleRate: config.getSentryTraceSampleRate(),
+    });
+  } else {
+    logger.debug("No Sentry DSN detected. Skipping Sentry init.");
+  }
+
   const client = new Client({
     intents: [Intents.FLAGS.GUILDS, Intents.FLAGS.GUILD_MESSAGES, Intents.FLAGS.GUILD_VOICE_STATES],
   });
@@ -32,6 +56,7 @@ async function main() {
 
   client.on("error", (error) => {
     logger.error("Unhandled client error", formatErrorMeta(error));
+    captureWithSerializedException(error);
     client.destroy();
   });
 
@@ -49,12 +74,19 @@ async function main() {
       const guild = message.guild;
       const channel = message.channel;
       Assert.notNullOrUndefined(guild, "guild");
-      logger.debug("Command detected", {
+      const logData = {
         guildId: guild.id,
         channelId: channel.id,
         command: command,
         args: parts.slice(1),
-      });
+      };
+      logger.debug("Command detected", logData);
+      const commandBreadcrumb: Breadcrumb = {
+        category: "main.onCommand",
+        message: "Command detected",
+        data: logData,
+      };
+      addBreadcrumb(commandBreadcrumb);
 
       if (command === "join") {
         const response = handleJoin(message);
@@ -94,22 +126,16 @@ async function main() {
     }
   });
 
-  const configResult = buildConfig();
-  if (configResult.isErr()) {
-    const error = configResult.error;
-    logger.error(`ConfigError: ${error}`);
-    return;
-  }
-  const config = configResult.value;
-
   logger.info("Logging in..");
   try {
-    await client.login(config.botToken);
+    await client.login(config.getBotToken());
   } catch (error) {
     logger.error("Unhandled exception in main", formatErrorMeta(error));
+    captureWithSerializedException(error);
   }
 }
 
 main().catch((error) => {
   logger.error(`Unhandled exception catch in main: ${error.message}`, formatErrorMeta(error));
+  captureWithSerializedException(error);
 });

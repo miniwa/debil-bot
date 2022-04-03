@@ -1,8 +1,7 @@
-import { Message, MessageEmbed, MessageOptions } from "discord.js";
+import { Message, MessageOptions } from "discord.js";
 import { MusicPlayer, MusicPlayerState } from "./audio/musicPlayer";
 import { logger } from "./logger";
 import { Assert } from "./misc/assert";
-import { err } from "./result";
 import {
   buildErrorNoSearchResult,
   buildErrorNotConnectedToVoiceChannel,
