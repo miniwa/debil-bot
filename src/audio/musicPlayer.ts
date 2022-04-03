@@ -1,20 +1,11 @@
-import {
-  AudioPlayer,
-  AudioPlayerIdleState,
-  AudioPlayerPlayingState,
-  AudioPlayerState,
-  AudioPlayerStatus,
-  createAudioPlayer,
-  joinVoiceChannel,
-  VoiceConnection,
-} from "@discordjs/voice";
-import { VoiceBasedChannel, VoiceChannel } from "discord.js";
+import { AudioPlayer, AudioPlayerStatus, createAudioPlayer } from "@discordjs/voice";
+import { VoiceBasedChannel } from "discord.js";
 import { formatErrorMeta, logger } from "../logger";
 import { Assert } from "../misc/assert";
 import { captureWithSerializedException } from "../misc/error";
 import { err, ok, Result } from "../result";
 import { MusicSubscription } from "./musicSubscription";
-import { ITrack, TrackContentError, TrackContentNotAvailableError } from "./track";
+import { ITrack, TrackContentError } from "./track";
 import { TrackQueue } from "./trackQueue";
 
 class MusicPlayerError extends Error {
@@ -36,6 +27,7 @@ export interface MusicPlayerEvents {
 export class MusicPlayer {
   private onErrorListeners: ((error: Error) => void)[];
   private state: MusicPlayerState;
+  private idleStartTime: number;
   private audioPlayer: AudioPlayer;
   private trackQueue: TrackQueue;
   private nowPlaying: ITrack | null;
@@ -44,6 +36,7 @@ export class MusicPlayer {
   constructor() {
     this.onErrorListeners = [];
     this.state = MusicPlayerState.Idle;
+    this.idleStartTime = Date.now();
     this.audioPlayer = createAudioPlayer();
     this.audioPlayer.on("error", (error) => {
       logger.warn("Unhandled AudioPlayer error", formatErrorMeta(error));
@@ -51,7 +44,7 @@ export class MusicPlayer {
       this.stop();
       this.emitOnError(error);
     });
-    this.audioPlayer.on(AudioPlayerStatus.Idle, async (oldState, newState) => {
+    this.audioPlayer.on(AudioPlayerStatus.Idle, async (oldState) => {
       if (oldState.status === AudioPlayerStatus.Playing && this.state === MusicPlayerState.Playing) {
         const playResult = await this.playNextOrStop();
         if (playResult.isErr()) {
@@ -78,6 +71,17 @@ export class MusicPlayer {
 
   getState() {
     return this.state;
+  }
+
+  /**
+   * @returns The amount of time this MusicPlayer has been idle in seconds, or null if the MusicPlayer is not idle.
+   * A MusicPlayer is considered idle when getState() returns MuscPlayerState.Idle.
+   */
+  getTimeIdlingStarted(): number | null {
+    if (this.state !== MusicPlayerState.Idle) {
+      return null;
+    }
+    return this.idleStartTime;
   }
 
   subscribeChannel(channel: VoiceBasedChannel) {
@@ -153,12 +157,13 @@ export class MusicPlayer {
   }
 
   stop() {
-    if (this.state === MusicPlayerState.Playing) {
-      this.state = MusicPlayerState.Idle;
-      this.nowPlaying = null;
+    if (this.state !== MusicPlayerState.Idle) {
       if (!this.audioPlayer.stop()) {
         logger.warn("audioPlayer.stop() returned false");
       }
+      this.state = MusicPlayerState.Idle;
+      this.idleStartTime = Date.now();
+      this.nowPlaying = null;
     }
   }
 
@@ -184,5 +189,13 @@ export class MusicPlayer {
     } else {
       return this.trackQueue.next();
     }
+  }
+
+  destroy() {
+    if (this.subscription) {
+      this.unsubscribeChannel();
+    }
+    this.audioPlayer.stop(true);
+    this.onErrorListeners = [];
   }
 }
