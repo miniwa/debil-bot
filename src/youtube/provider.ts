@@ -1,5 +1,6 @@
 import { User } from "discord.js";
 import Enumerable from "linq";
+import { InfoData, search, video_basic_info, YouTubeVideo } from "play-dl";
 import ytdl from "ytdl-core";
 import ytsr from "ytsr";
 import { TrackLength } from "../audio/track";
@@ -25,24 +26,23 @@ export class YouTubeProvider {
   async search(query: string, requester: User): Promise<Result<YouTubeTrack, YouTubeSearchError>> {
     const profile = logger.startTimer();
     Assert.checkCondition(query !== "", "Expected query to not be empty string");
-    logger.debug("Searching YouTube", {
-      query: query,
-    });
 
-    let searchResult: ytsr.Result;
+    let searchResults: YouTubeVideo[];
     try {
-      searchResult = await ytsr(query, { limit: 10 });
+      searchResults = await search(query, {
+        limit: 1,
+        source: {
+          youtube: "video",
+        },
+      });
     } catch (error) {
+      logger.debug("Unexpected error thrown by play-dl.search", formatErrorMeta(error));
       return err({
         kind: "YTNotAvailable",
       });
     }
-    const videos = Enumerable.from(searchResult.items)
-      .where((item) => item.type === "video")
-      .cast<ytsr.Video>()
-      .toArray();
 
-    if (videos.length === 0) {
+    if (searchResults.length === 0) {
       logger.debug("Query did not find any results", {
         query: query,
       });
@@ -50,40 +50,39 @@ export class YouTubeProvider {
         kind: "YTNoResult",
       });
     }
-    const video = videos[0];
+    const video = searchResults[0];
     logger.debug("Query found video", {
       query: query,
       video: video,
     });
-    const videoId = new YouTubeVideoId(video.id);
-    const trackResult = await this.byVideoId(videoId, requester);
+    const title = video.title;
+    Assert.notNullOrUndefined(title, "title");
+    const track = new YouTubeTrack(title, video.url, new TrackLength(video.durationInSec), requester);
     profile.done({ level: "debug", message: "YouTubeProvider.search profile" });
-    return trackResult;
+    return ok(track);
   }
 
   async byVideoId(videoId: YouTubeVideoId, requester: User): Promise<Result<YouTubeTrack, YouTubeTrackByIdError>> {
     const profile = logger.startTimer();
     const url = `https://www.youtube.com/watch?v=${videoId.raw}`;
-    logger.debug(`Calling getInfo for id=${videoId.raw}`, {
-      youtubeVideoId: videoId.raw,
-    });
+    let info: InfoData;
 
-    let info: ytdl.videoInfo;
     try {
-      info = await ytdl.getInfo(url);
+      info = await video_basic_info(url);
     } catch (error) {
-      logger.debug("Unexpected exception thrown by ytdl.getInfo", formatErrorMeta(error));
+      logger.debug("Unexpected exception thrown by video_basic_info", formatErrorMeta(error));
       return err({
         kind: "YTNotAvailable",
       });
     }
     logger.debug("Video info received", { youtubeVideoId: videoId });
 
-    const name = info.videoDetails.title;
-    const lengthInSeconds = parseInt(info.videoDetails.lengthSeconds);
+    const name = info.video_details.title;
+    Assert.notNullOrUndefined(name, "name");
+    const lengthInSeconds = info.video_details.durationInSec;
     Assert.checkCondition(!isNaN(lengthInSeconds), "Expected length not to be NaN");
     const length = new TrackLength(lengthInSeconds);
-    const track = new YouTubeTrack(name, url, length, requester, info);
+    const track = new YouTubeTrack(name, url, length, requester);
     logger.debug("Created new YouTubeTrack", {
       trackName: track.getName(),
       trackUrl: track.getUrl(),
