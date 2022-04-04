@@ -1,25 +1,21 @@
-import { AudioResource, createAudioResource, StreamType } from "@discordjs/voice";
+import { AudioResource, createAudioResource } from "@discordjs/voice";
 import { User } from "discord.js";
-import ytdl from "ytdl-core";
 import { ITrack, TrackContentError, TrackContentNotAvailableError, TrackLength } from "../audio/track";
 import { formatErrorMeta, logger } from "../logger";
-import { Assert } from "../misc/assert";
 import { err, ok, Result } from "../result";
-import { Readable } from "stream";
+import { InfoData, SoundCloudStream, stream, video_info, YouTubeStream } from "play-dl";
 
 export class YouTubeTrack implements ITrack {
   private name: string;
   private url: string;
   private length: TrackLength;
   private requester: User;
-  private videoInfo: ytdl.videoInfo;
 
-  constructor(name: string, url: string, length: TrackLength, requester: User, videoInfo: ytdl.videoInfo) {
+  constructor(name: string, url: string, length: TrackLength, requester: User) {
     this.name = name;
     this.url = url;
     this.length = length;
     this.requester = requester;
-    this.videoInfo = videoInfo;
   }
 
   getName(): string {
@@ -40,38 +36,9 @@ export class YouTubeTrack implements ITrack {
 
   async createAudioResource(): Promise<Result<AudioResource, TrackContentError>> {
     const profile = logger.startTimer();
-    let opusFormat: ytdl.videoFormat;
+    let ytStream: YouTubeStream | SoundCloudStream;
     try {
-      opusFormat = ytdl.chooseFormat(this.videoInfo.formats, {
-        filter: (format) => {
-          return format.codecs.includes("opus") && format.container === "webm";
-        },
-        quality: "highestaudio",
-      });
-    } catch (error) {
-      logger.debug("Unexpected error from ytdl.chooseFormat", formatErrorMeta(error));
-      const trackContentNotAvailable: TrackContentNotAvailableError = {
-        type: "TrackContentNotAvailableError",
-        reason: "Could not locate an opus codec with webm container",
-      };
-      return err(trackContentNotAvailable);
-    }
-
-    logger.debug("Chosen format", {
-      format: {
-        container: opusFormat.container,
-        codecs: opusFormat.codecs,
-        approxDurationMs: opusFormat.approxDurationMs,
-        contentLength: opusFormat.contentLength,
-      },
-    });
-    const bufferSize = 16 * 1024 * 1024;
-    let downloadStream: Readable;
-    try {
-      downloadStream = ytdl.downloadFromInfo(this.videoInfo, {
-        format: opusFormat,
-        highWaterMark: bufferSize,
-      });
+      ytStream = await stream(this.url);
     } catch (error) {
       logger.debug("Failed to create download stream", formatErrorMeta(error));
       const contentError: TrackContentNotAvailableError = {
@@ -80,8 +47,10 @@ export class YouTubeTrack implements ITrack {
       };
       return err(contentError);
     }
-
-    const resource = createAudioResource(downloadStream, { inputType: StreamType.WebmOpus, silencePaddingFrames: 10 });
+    logger.debug(`Stream created`, {
+      streamType: ytStream.type,
+    });
+    const resource = createAudioResource(ytStream.stream, { inputType: ytStream.type, silencePaddingFrames: 5 });
     profile.done({ level: "debug", message: "YouTubeTrack.createAudioResource profile" });
     return ok(resource);
   }
