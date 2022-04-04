@@ -1,8 +1,5 @@
 import { User } from "discord.js";
-import Enumerable from "linq";
 import { InfoData, search, video_basic_info, YouTubeVideo } from "play-dl";
-import ytdl from "ytdl-core";
-import ytsr from "ytsr";
 import { TrackLength } from "../audio/track";
 import { formatErrorMeta, logger } from "../logger";
 import { Assert } from "../misc/assert";
