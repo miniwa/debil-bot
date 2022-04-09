@@ -32,12 +32,12 @@ async function main() {
   const client = initClient();
   process.on("SIGINT", () => {
     logger.info("SIGINT handler");
-    client.destroy();
+    cleanup(client);
   });
 
   process.on("SIGTERM", () => {
     logger.info("SIGTERM handler");
-    client.destroy();
+    cleanup(client);
   });
 
   logger.info("Logging in..");
@@ -141,6 +141,11 @@ function initClient(): Client {
 
 function initScheduledTasks(config: IConfig) {
   destroyIdleGuildContextsTask(config.getMaxIdleTimeSeconds());
+}
+
+function cleanup(client: Client) {
+  client.destroy();
+  process.exit(0);
 }
 
 main().catch((error) => {
