@@ -113,6 +113,10 @@ Permissions Integer: `3197952`
 - Click authorize
 - All done!
 
+## Changelog
+
+- [Changelog](/CHANGELOG.md)
+
 ## Known issues
 
 - Searches and retrieving video info is slow (~2 seconds). See https://github.com/miniwa/debil-bot/issues/13.
