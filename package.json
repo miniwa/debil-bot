@@ -27,7 +27,7 @@
     "typescript": "^4.6.2"
   },
   "dependencies": {
-    "@discordjs/opus": "^0.5.3",
+    "@discordjs/opus": "^0.7.0",
     "@discordjs/voice": "^0.9.0",
     "@sentry/node": "^6.19.3",
     "@sentry/tracing": "^6.19.3",
