@@ -1,4 +1,4 @@
-import { Client, Intents } from "discord.js";
+import {Client} from "discord.js";
 import {
   CommandContext,
   handleJoin,
@@ -11,13 +11,13 @@ import {
   isCommand,
   parseCommand,
 } from "./commands";
-import { buildConfig, IConfig } from "./config";
-import { formatErrorMeta, logger } from "./logger";
-import { Assert } from "./misc/assert";
-import { addBreadcrumb, Breadcrumb } from "@sentry/node";
-import { captureWithSerializedException, configureSentry } from "./misc/error";
-import { getOrCreateGuildContext } from "./context";
-import { destroyIdleGuildContextsTask } from "./tasks";
+import {buildConfig, IConfig} from "./config";
+import {formatErrorMeta, logger} from "./logger";
+import {Assert} from "./misc/assert";
+import {addBreadcrumb, Breadcrumb} from "@sentry/node";
+import {captureWithSerializedException, configureSentry} from "./misc/error";
+import {getOrCreateGuildContext} from "./context";
+import {destroyIdleGuildContextsTask} from "./tasks";
 
 async function main() {
   const configResult = buildConfig();
@@ -52,7 +52,7 @@ async function main() {
 
 function initClient(): Client {
   const client = new Client({
-    intents: [Intents.FLAGS.GUILDS, Intents.FLAGS.GUILD_MESSAGES, Intents.FLAGS.GUILD_VOICE_STATES],
+    intents: ["Guilds", "GuildMessages", "GuildVoiceStates", "MessageContent"],
   });
 
   client.on("error", (error) => {
@@ -133,7 +133,7 @@ function initClient(): Client {
         const response = handleQueue(ctx);
         message.reply(response);
       }
-      handleCommandProfile.done({ level: "debug", message: "Command handler profile" });
+      handleCommandProfile.done({level: "debug", message: "Command handler profile"});
     }
   });
   return client;

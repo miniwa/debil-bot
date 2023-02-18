@@ -1,4 +1,4 @@
-import { Guild, Message, MessageOptions } from "discord.js";
+import { Guild, Message, BaseMessageOptions } from "discord.js";
 import { MusicPlayer, MusicPlayerState } from "./audio/musicPlayer";
 import { GuildContext } from "./context";
 import { Assert } from "./misc/assert";
@@ -75,7 +75,7 @@ export function handleNowPlaying(ctx: CommandContext) {
   return buildNowPlayingResponse(nowPlaying);
 }
 
-export async function handlePlay(ctx: CommandContext): Promise<MessageOptions> {
+export async function handlePlay(ctx: CommandContext): Promise<BaseMessageOptions> {
   const requester = ctx.message.author;
   if (ctx.args.length === 0) {
     return {
@@ -150,7 +150,7 @@ export function handleStop(ctx: CommandContext) {
   return buildStopResponse();
 }
 
-export async function handleSkip(ctx: CommandContext): Promise<MessageOptions> {
+export async function handleSkip(ctx: CommandContext): Promise<BaseMessageOptions> {
   const nowPlaying = ctx.musicPlayer.getNowPlaying();
   if (!nowPlaying) {
     return buildErrorNotPlaying();

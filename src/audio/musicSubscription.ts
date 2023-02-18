@@ -1,8 +1,8 @@
-import { AudioPlayer, joinVoiceChannel, PlayerSubscription, VoiceConnection } from "@discordjs/voice";
-import { VoiceBasedChannel, VoiceChannel } from "discord.js";
-import { formatErrorMeta, logger } from "../logger";
-import { Assert } from "../misc/assert";
-import { captureWithSerializedException } from "../misc/error";
+import {AudioPlayer, joinVoiceChannel, PlayerSubscription, VoiceConnection} from "@discordjs/voice";
+import {VoiceBasedChannel} from "discord.js";
+import {formatErrorMeta, logger} from "../logger";
+import {Assert} from "../misc/assert";
+import {captureWithSerializedException} from "../misc/error";
 
 export class MusicSubscription {
   readonly channelId: string;

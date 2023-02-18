@@ -1,66 +1,96 @@
-import { MessageEmbed, MessageOptions, MessagePayload, User } from "discord.js";
-import { ITrack } from "../audio/track";
-import { Assert } from "../misc/assert";
+import {BaseMessageOptions, EmbedBuilder} from "discord.js";
+import {ITrack} from "../audio/track";
+import {Assert} from "../misc/assert";
 
 const darkRed = "#870209";
 
-export function buildJoinResponse(channelName: string): MessageOptions {
+export function buildJoinResponse(channelName: string): BaseMessageOptions {
   return {
     content: `Joining ${channelName}`,
   };
 }
 
-export function buildLeaveResponse(channelName: string): MessageOptions {
+export function buildLeaveResponse(channelName: string): BaseMessageOptions {
   return {
     content: `Leaving ${channelName}`,
   };
 }
 
-export function buildNowPlayingResponse(track: ITrack): MessageOptions {
-  const embed = new MessageEmbed()
+export function buildNowPlayingResponse(track: ITrack): BaseMessageOptions {
+  const embed = new EmbedBuilder();
+  embed
     .setColor(darkRed)
-    .setAuthor({ name: "Now playing" })
+    .setAuthor({name: "Now playing"})
     .setTitle(track.getName())
     .setURL(track.getUrl())
-    .addField("Length", track.getLength().getHumanReadable(), true)
-    .addField("Requester", track.getRequester().username);
+    .addFields(
+      {
+        name: "Length",
+        value: track.getLength().getHumanReadable(),
+        inline: true,
+      },
+      {
+        name: "Requester",
+        value: track.getRequester().username,
+      }
+    );
+
   return {
     embeds: [embed],
   };
 }
 
-export function buildPlayResponse(positionInQueue: number, track: ITrack): MessageOptions {
+export function buildPlayResponse(positionInQueue: number, track: ITrack): BaseMessageOptions {
   const requester = track.getRequester();
   const requesterAvatarUrl = requester.avatarURL();
   Assert.notNullOrUndefined(requesterAvatarUrl, "requesterAvatarUrl");
 
-  const embed = new MessageEmbed()
+  const embed = new EmbedBuilder()
     .setColor(darkRed)
-    .setAuthor({ name: "Added to queue", iconURL: requesterAvatarUrl })
+    .setAuthor({name: "Added to queue", iconURL: requesterAvatarUrl})
     .setTitle(track.getName())
     .setURL(track.getUrl())
-    .addField("Position in queue", positionInQueue.toFixed(0), true)
-    .addField("Length", track.getLength().getHumanReadable(), true);
+    .addFields(
+      {
+        name: "Position in queue",
+        value: positionInQueue.toFixed(0),
+        inline: true,
+      },
+      {
+        name: "Length",
+        value: track.getLength().getHumanReadable(),
+        inline: true,
+      }
+    );
   return {
     embeds: [embed],
   };
 }
 
-export function buildStopResponse(): MessageOptions {
-  const embed = new MessageEmbed().setColor(darkRed).setDescription("Stopped playing");
+export function buildStopResponse(): BaseMessageOptions {
+  const embed = new EmbedBuilder().setColor(darkRed).setDescription("Stopped playing");
   return {
     embeds: [embed],
   };
 }
 
-export function buildSkipResponse(skipped: ITrack): MessageOptions {
-  const embed = new MessageEmbed()
+export function buildSkipResponse(skipped: ITrack): BaseMessageOptions {
+  const embed = new EmbedBuilder()
     .setColor(darkRed)
-    .setAuthor({ name: "Skipped" })
+    .setAuthor({name: "Skipped"})
     .setTitle(skipped.getName())
     .setURL(skipped.getUrl())
-    .addField("Length", skipped.getLength().getHumanReadable(), true)
-    .addField("Requester", skipped.getRequester().username);
+    .addFields(
+      {
+        name: "Length in queue",
+        value: skipped.getLength().getHumanReadable(),
+        inline: true,
+      },
+      {
+        name: "Requester",
+        value: skipped.getRequester().username,
+      }
+    );
   return {
     embeds: [embed],
   };
@@ -70,16 +100,16 @@ function formatTrackName(track: ITrack) {
   return `[${track.getName()}](${track.getUrl()})`;
 }
 
-export function buildQueueResponse(queue: ITrack[], nowPlaying: ITrack | null): MessageOptions {
+export function buildQueueResponse(queue: ITrack[], nowPlaying: ITrack | null): BaseMessageOptions {
   if (queue.length === 0 && nowPlaying === null) {
-    const embed = new MessageEmbed().setColor(darkRed).setTitle("Queue").setDescription("Empty");
+    const embed = new EmbedBuilder().setColor(darkRed).setTitle("Queue").setDescription("Empty");
     return {
       embeds: [embed],
     };
   }
 
   let description = "";
-  const embed = new MessageEmbed().setColor(darkRed).setTitle("Queue");
+  const embed = new EmbedBuilder().setColor(darkRed).setTitle("Queue");
   if (nowPlaying) {
     const length = nowPlaying.getLength().getHumanReadable();
     const requestedBy = nowPlaying.getRequester().username;
@@ -103,43 +133,43 @@ export function buildQueueResponse(queue: ITrack[], nowPlaying: ITrack | null): 
   };
 }
 
-export function buildErrorNotInVoiceChannel(): MessageOptions {
+export function buildErrorNotInVoiceChannel(): BaseMessageOptions {
   return {
     content: "You are not inside a voice channel",
   };
 }
 
-export function buildErrorNotConnectedToVoiceChannel(): MessageOptions {
+export function buildErrorNotConnectedToVoiceChannel(): BaseMessageOptions {
   return {
     content: "Bot is not connected to a voice channel",
   };
 }
 
-export function buildErrorNotPlaying(): MessageOptions {
+export function buildErrorNotPlaying(): BaseMessageOptions {
   return {
     content: "Bot is not playing anything",
   };
 }
 
-export function buildErrorNoSearchResult(query: string): MessageOptions {
+export function buildErrorNoSearchResult(query: string): BaseMessageOptions {
   return {
     content: `No video found for query \`${query}\``,
   };
 }
 
-export function buildYouTubeNotAvailable(): MessageOptions {
+export function buildYouTubeNotAvailable(): BaseMessageOptions {
   return {
     content: "This song is not available. There are many possible reasons why",
   };
 }
 
-export function buildTrackContentError(): MessageOptions {
+export function buildTrackContentError(): BaseMessageOptions {
   return {
     content: "There was a problem playing the content of this track",
   };
 }
 
-export function buildUiMessageResponse(obj: { uiMessage: string }): MessageOptions {
+export function buildUiMessageResponse(obj: { uiMessage: string }): BaseMessageOptions {
   return {
     content: obj.uiMessage,
   };
